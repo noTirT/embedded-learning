@@ -22,16 +22,12 @@ void motor_update_wrapper(void* ctx) {
 
 void ledAction(void* context) {
     (void)context;
-    // removed cout to reduce clutter
     std::cout << "Led blinked" << std::endl;
 }
 
 int main() {
-    struct FakeMotorRegisters fakeRegister;
+    struct FakeMotorRegisters fakeRegister = {0,0};
     UartBuffer buffer;
-
-    fakeRegister.ARR = 0;
-    fakeRegister.CSR = 0;
 
     auto ledTimer = Timer(500, &ledAction);
     MotorController motor = MotorController(&fakeRegister, &buffer);
