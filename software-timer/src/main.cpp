@@ -1,19 +1,29 @@
 #include "hardware_sim.hpp"
+#include "scheduler.hpp"
 #include "timer.hpp"
 #include "motor_controller.hpp"
 #include "types.hpp"
-#include <chrono>
-#include <iostream>
-#include <thread>
 
+void timer_onTick_wrapper(void* ctx) {
+    static_cast<Timer*>(ctx)->onTick();
+}
 
-uint32_t getCurrentTime() {
-    return static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count());
+void timer_update_wrapper(void* ctx) {
+    static_cast<Timer*>(ctx)->update();
+}
+
+void motor_tick_wrapper(void* ctx) {
+    static_cast<MotorController*>(ctx)->tick();
+}
+
+void motor_update_wrapper(void* ctx) {
+    static_cast<MotorController*>(ctx)->update();
 }
 
 void ledAction(void* context) {
     (void)context;
-    std::cout << "Led flickered" << std::endl;
+    // removed cout to reduce clutter
+    std::cout << "Led blinked" << std::endl;
 }
 
 int main() {
@@ -26,27 +36,14 @@ int main() {
     auto ledTimer = Timer(500, &ledAction);
     MotorController motor = MotorController(&fakeRegister, &buffer);
 
-    auto last = getCurrentTime();
+    Scheduler<4> scheduler = Scheduler<4>(&buffer);
 
-    while(true) {
-        auto current = getCurrentTime();
-        while(current - last >= 1) {
-            ledTimer.onTick();
-            motor.tick();
-            last++;
-        }
-        ledTimer.update();
-        motor.update();
-        if(!buffer.isEmpty()) {
-            char c;
-            int success = buffer.pop(&c);
-            if(success)
-                std::cout << c << std::endl;
-            else
-                std::cout << "Failed to read from buffer" << std::endl;
-        }
-        std::this_thread::sleep_for(std::chrono::microseconds(100));
-    }
+    scheduler.registerTask(1, timer_onTick_wrapper, &ledTimer, 10);
+    scheduler.registerTask(10, timer_update_wrapper, &ledTimer);
+    scheduler.registerTask(1, motor_tick_wrapper, &motor, 10);
+    scheduler.registerTask(10, motor_update_wrapper, &motor, 5);
+
+    scheduler.run();
 
     return 0;
 }
